@@ -44,6 +44,8 @@ class ElfMagicIdent(NamedTuple):
         1 byte      OS/ABI
         1 byte      ABI version
         7 bytes     padding
+    Total:
+        16 bytes
     """
 
     magic: bytes
@@ -81,41 +83,27 @@ class ElfFileType(enum.IntEnum):
 
 class ElfHeader(NamedTuple):
     """
-    typedef struct
-    {
-      unsigned char	e_ident[16];	    /* Magic number and other info */
-      uint16_t      e_type;		    	/* Object file type */
-      uint16_t      e_machine;	    	/* Architecture */
-      uint32_t      e_version;	    	/* Object file version */
-      uint32_t      e_entry;	    	/* Entry point virtual address */
-      uint32_t      e_phoff;	    	/* Program header table file offset */
-      uint32_t      e_shoff;	    	/* Section header table file offset */
-      uint32_t      e_flags;	    	/* Processor-specific flags */
-      uint16_t      e_ehsize;	    	/* ELF header size in bytes */
-      uint16_t      e_phentsize;		/* Program header table entry size */
-      uint16_t      e_phnum;	    	/* Program header table entry count */
-      uint16_t      e_shentsize;		/* Section header table entry size */
-      uint16_t      e_shnum;	    	/* Section header table entry count */
-      uint16_t      e_shstrndx;	    	/* Section header string table index */
-    } Elf32_Ehdr;
-
-    typedef struct
-    {
-      unsigned char	e_ident[16];	    /* Magic number and other info */
-      uint16_t      e_type;		    	/* Object file type */
-      uint16_t      e_machine;	    	/* Architecture */
-      uint32_t      e_version;	    	/* Object file version */
-      uint64_t      e_entry;	    	/* Entry point virtual address */
-      uint64_t      e_phoff;	    	/* Program header table file offset */
-      uint64_t      e_shoff;	    	/* Section header table file offset */
-      uint32_t      e_flags;	    	/* Processor-specific flags */
-      uint16_t      e_ehsize;	    	/* ELF header size in bytes */
-      uint16_t      e_phentsize;		/* Program header table entry size */
-      uint16_t      e_phnum;	    	/* Program header table entry count */
-      uint16_t      e_shentsize;		/* Section header table entry size */
-      uint16_t      e_shnum;	    	/* Section header table entry count */
-      uint16_t      e_shstrndx;	    	/* Section header string table index */
-    } Elf64_Ehdr;
+    Format:
+        ELF-32      ELF-64
+        ------      ------
+        16 bytes    16 bytes        Magic number and other info
+        2 bytes     2 bytes         Object file type
+        2 bytes     2 bytes         Architecture
+        4 bytes     4 bytes         Object file version
+        4 bytes     8 bytes         Entry point virtual address
+        4 bytes     8 bytes         Program header table file offset
+        4 bytes     8 bytes         Section header table file offset
+        4 bytes     4 bytes         Processor-specific flags
+        2 bytes     2 bytes         ELF header size in bytes
+        2 bytes     2 bytes         Program header table entry size
+        2 bytes     2 bytes         Program header table entry count
+        2 bytes     2 bytes         Section header table entry size
+        2 bytes     2 bytes         Section header table entry count
+        2 bytes     2 bytes         Section header string table index
+    Total:
+        ELF-32      ELF-64
+        ------      ------
+        52 bytes    64 bytes
     """
 
     magic_id: ElfMagicIdent
