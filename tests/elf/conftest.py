@@ -2,6 +2,7 @@ from typing import NamedTuple, Union
 import pytest
 
 from zelda.elf.parse import (
+    ELF_MAGIC,
     ElfClass,
     ElfData,
     ElfFileType,
@@ -33,7 +34,7 @@ def elf_header_tuple():
 @pytest.fixture
 def little_endian_magic_ident():
     return ElfMagicIdent(
-        ElfClass.ELF_64, ElfData.LITTLE_ENDIAN, ElfVersion.CURRENT, 0, 0
+        ELF_MAGIC, ElfClass.ELF_64, ElfData.LITTLE_ENDIAN, ElfVersion.CURRENT, 0, 0
     )
 
 
@@ -89,7 +90,9 @@ def little_endian_elf_program():
 
 @pytest.fixture
 def big_endian_magic_ident():
-    return ElfMagicIdent(ElfClass.ELF_64, ElfData.BIG_ENDIAN, ElfVersion.CURRENT, 0, 0)
+    return ElfMagicIdent(
+        ELF_MAGIC, ElfClass.ELF_64, ElfData.BIG_ENDIAN, ElfVersion.CURRENT, 0, 0
+    )
 
 
 @pytest.fixture

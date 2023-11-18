@@ -30,7 +30,7 @@ class ElfVersion(enum.IntEnum):
     CURRENT = 1
 
 
-ELF_MAGIC = bytearray([0x7F, 0x45, 0x4C, 0x46])  # 0x7fELF
+ELF_MAGIC = b"\x7fELF"
 ELF_MAGIC_BYTES_FORMAT = "BBBBB7x"
 
 
@@ -62,7 +62,7 @@ class ElfMagicIdent(NamedTuple):
             ELF_MAGIC_BYTES_FORMAT, the_bytes, offset=4
         )
         return cls(
-            bytes(the_bytes[:4]),
+            ELF_MAGIC,
             ElfClass(elf_class),
             ElfData(data),
             ElfVersion(version),
