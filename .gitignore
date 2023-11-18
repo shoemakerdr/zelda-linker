@@ -1,0 +1,4 @@
+src/zelda/version.py
+__pycache__
+*.pyc
+*.egg-info/

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zelda-linker"
+authors = [
+    {name = "Derek Shoemaker", email = "shoemakerdr@gmail.com"},
+]
+description = "A linker written in pure Python (learning purposes only)"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["ld", "linker", "elf"]
+license = {text = "BSD-3-Clause"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = []
+dynamic = ["version"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools_scm]
+version_file = "src/zelda/version.py"
+
+[project.scripts]
+zelda = "zelda.cli:main"

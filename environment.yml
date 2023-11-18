@@ -1,0 +1,4 @@
+name: zelda
+dependencies:
+  - python >=3.8
+  - pytest
