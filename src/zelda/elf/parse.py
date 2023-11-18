@@ -1,4 +1,4 @@
-from typing import Any, NamedTuple
+from typing import NamedTuple
 import enum
 import struct
 
@@ -39,13 +39,14 @@ class ElfMagicIdent(NamedTuple):
     Format:
         4 bytes     magic
         1 byte      class
-        1 byte      data
+        1 byte      data (endianness)
         1 byte      version
         1 byte      OS/ABI
         1 byte      ABI version
         7 bytes     padding
     """
 
+    magic: bytes
     elf_class: ElfClass
     data: ElfData
     version: ElfVersion
@@ -61,7 +62,12 @@ class ElfMagicIdent(NamedTuple):
             ELF_MAGIC_BYTES_FORMAT, the_bytes, offset=4
         )
         return cls(
-            ElfClass(elf_class), ElfData(data), ElfVersion(version), os_abi, abi_version
+            bytes(the_bytes[:4]),
+            ElfClass(elf_class),
+            ElfData(data),
+            ElfVersion(version),
+            os_abi,
+            abi_version,
         )
 
 
@@ -79,7 +85,7 @@ ELF_STRUCT_BYTES_FORMATS = {
 }
 
 
-def get_struct_bytes_format(magic_ident: ElfMagicIdent) -> str:
+def get_elf_header_struct_bytes_format(magic_ident: ElfMagicIdent) -> str:
     return (
         magic_ident.data.struct_format + ELF_STRUCT_BYTES_FORMATS[magic_ident.elf_class]
     )
@@ -142,14 +148,13 @@ class ElfHeader(NamedTuple):
     @classmethod
     def parse(cls, the_bytes: Bytes) -> "ElfHeader":
         magic_ident = ElfMagicIdent.parse(the_bytes)
-        struct_bytes_format = get_struct_bytes_format(magic_ident)
+        struct_bytes_format = get_elf_header_struct_bytes_format(magic_ident)
         file_type, *rest = struct.unpack_from(struct_bytes_format, the_bytes, offset=16)
         return cls(magic_ident, ElfFileType(file_type), *rest)
 
 
-def parse_elf(contents: Bytes) -> dict[str, Any]:
-    print(contents)
-    return {}
+def parse_elf(contents: Bytes) -> ElfHeader:
+    return ElfHeader.parse(contents)
 
 
 if __name__ == "__main__":
@@ -163,9 +168,12 @@ if __name__ == "__main__":
         if not elf_file.exists():
             raise SystemExit(f"ERROR: Specified ELF file `{elf_file}` does not exist!")
 
-        print(f"Contents of {elf_file}:")
         fbytes = elf_file.read_bytes()
-        parsed = parse_elf(memoryview(fbytes))
+        try:
+            parsed = parse_elf(memoryview(fbytes))
+        except ElfParseError as e:
+            raise SystemExit(f"ERROR: {e.__class__.__name__} - {e}") from None
+        print(f"Contents of {elf_file}:")
         print(parsed)
 
     main()
