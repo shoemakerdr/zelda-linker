@@ -31,7 +31,7 @@ class ElfVersion(enum.IntEnum):
 
 
 ELF_MAGIC = b"\x7fELF"
-ELF_MAGIC_BYTES_FORMAT = "BBBBB7x"
+ELF_MAGIC_BYTES_STRUCT_FORMAT = "BBBBB7x"
 
 
 class ElfMagicIdent(NamedTuple):
@@ -59,7 +59,7 @@ class ElfMagicIdent(NamedTuple):
         if the_bytes[:4] != ELF_MAGIC:
             raise ElfParseError("File is not ELF!")
         elf_class, data, version, os_abi, abi_version = struct.unpack_from(
-            ELF_MAGIC_BYTES_FORMAT, the_bytes, offset=4
+            ELF_MAGIC_BYTES_STRUCT_FORMAT, the_bytes, offset=4
         )
         return cls(
             ELF_MAGIC,
@@ -77,18 +77,6 @@ class ElfFileType(enum.IntEnum):
     SHARED_OBJECT = 2
     RELOCATABLE_OBJECT = 3
     CORE_DUMP = 4
-
-
-ELF_STRUCT_BYTES_FORMATS = {
-    ElfClass.ELF_32: "HHIIIIIHHHHHH",
-    ElfClass.ELF_64: "HHIQQQIHHHHHH",
-}
-
-
-def get_elf_header_struct_bytes_format(magic_ident: ElfMagicIdent) -> str:
-    return (
-        magic_ident.data.struct_format + ELF_STRUCT_BYTES_FORMATS[magic_ident.elf_class]
-    )
 
 
 class ElfHeader(NamedTuple):
@@ -148,9 +136,16 @@ class ElfHeader(NamedTuple):
     @classmethod
     def parse(cls, the_bytes: Bytes) -> "ElfHeader":
         magic_ident = ElfMagicIdent.parse(the_bytes)
-        struct_bytes_format = get_elf_header_struct_bytes_format(magic_ident)
+        struct_bytes_format = cls._get_struct_format(magic_ident)
         file_type, *rest = struct.unpack_from(struct_bytes_format, the_bytes, offset=16)
         return cls(magic_ident, ElfFileType(file_type), *rest)
+
+    @staticmethod
+    def _get_struct_format(magic_ident: ElfMagicIdent) -> str:
+        if magic_ident.elf_class is ElfClass.ELF_32:
+            return magic_ident.data.struct_format + "HHIIIIIHHHHHH"
+        else:  # ElfClass.ELF_64
+            return magic_ident.data.struct_format + "HHIQQQIHHHHHH"
 
 
 def parse_elf(contents: Bytes) -> ElfHeader:
@@ -173,7 +168,7 @@ if __name__ == "__main__":
             parsed = parse_elf(memoryview(fbytes))
         except ElfParseError as e:
             raise SystemExit(f"ERROR: {e.__class__.__name__} - {e}") from None
-        print(f"Contents of {elf_file}:")
+        print(f"Parsed contents of {elf_file}:")
         print(parsed)
 
     main()
