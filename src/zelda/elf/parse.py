@@ -2,6 +2,8 @@ from typing import Any, NamedTuple
 import enum
 import struct
 
+from zelda.types import Bytes
+
 
 class ElfParseError(Exception):
     pass
@@ -52,7 +54,7 @@ class ElfMagicIdent(NamedTuple):
     abi_version: int
 
     @classmethod
-    def parse(cls, the_bytes):
+    def parse(cls, the_bytes: Bytes) -> "ElfMagicIdent":
         if the_bytes[:4] != ELF_MAGIC:
             raise ElfParseError("File is not ELF!")
         elf_class, data, version, os_abi, abi_version = struct.unpack_from(
@@ -138,14 +140,14 @@ class ElfHeader(NamedTuple):
     section_header_table_index: int
 
     @classmethod
-    def parse(cls, the_bytes: bytes) -> "ElfHeader":
+    def parse(cls, the_bytes: Bytes) -> "ElfHeader":
         magic_ident = ElfMagicIdent.parse(the_bytes)
         struct_bytes_format = get_struct_bytes_format(magic_ident)
         file_type, *rest = struct.unpack_from(struct_bytes_format, the_bytes, offset=16)
         return cls(magic_ident, ElfFileType(file_type), *rest)
 
 
-def parse_elf(contents: bytes) -> dict[str, Any]:
+def parse_elf(contents: Bytes) -> dict[str, Any]:
     print(contents)
     return {}
 
