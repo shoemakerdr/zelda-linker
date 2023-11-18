@@ -4,7 +4,7 @@ import pytest
 from zelda.elf.parse import (
     ELF_MAGIC,
     ElfClass,
-    ElfData,
+    ElfByteOrder,
     ElfFileType,
     ElfHeader,
     ElfMagicIdent,
@@ -34,7 +34,7 @@ def elf_header_tuple():
 @pytest.fixture
 def little_endian_magic_ident():
     return ElfMagicIdent(
-        ELF_MAGIC, ElfClass.ELF_64, ElfData.LITTLE_ENDIAN, ElfVersion.CURRENT, 0, 0
+        ELF_MAGIC, ElfClass.ELF_64, ElfByteOrder.LITTLE_ENDIAN, ElfVersion.CURRENT, 0, 0
     )
 
 
@@ -91,7 +91,7 @@ def little_endian_elf_program():
 @pytest.fixture
 def big_endian_magic_ident():
     return ElfMagicIdent(
-        ELF_MAGIC, ElfClass.ELF_64, ElfData.BIG_ENDIAN, ElfVersion.CURRENT, 0, 0
+        ELF_MAGIC, ElfClass.ELF_64, ElfByteOrder.BIG_ENDIAN, ElfVersion.CURRENT, 0, 0
     )
 
 

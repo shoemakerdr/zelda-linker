@@ -15,7 +15,7 @@ class ElfClass(enum.IntEnum):
     ELF_64 = 2
 
 
-class ElfData(enum.IntEnum):
+class ElfByteOrder(enum.IntEnum):
     INVALID = 0
     LITTLE_ENDIAN = 1
     BIG_ENDIAN = 2
@@ -39,7 +39,7 @@ class ElfMagicIdent(NamedTuple):
     Format:
         4 bytes     magic
         1 byte      class
-        1 byte      data (endianness)
+        1 byte      data (byte order)
         1 byte      version
         1 byte      OS/ABI
         1 byte      ABI version
@@ -50,7 +50,7 @@ class ElfMagicIdent(NamedTuple):
 
     magic: bytes
     elf_class: ElfClass
-    data: ElfData
+    byte_order: ElfByteOrder
     version: ElfVersion
     # Not using the rest of the info
     os_abi: int
@@ -60,13 +60,13 @@ class ElfMagicIdent(NamedTuple):
     def parse(cls, the_bytes: Bytes) -> "ElfMagicIdent":
         if the_bytes[:4] != ELF_MAGIC:
             raise ElfParseError("File is not ELF!")
-        elf_class, data, version, os_abi, abi_version = struct.unpack_from(
+        elf_class, byte_order, version, os_abi, abi_version = struct.unpack_from(
             ELF_MAGIC_BYTES_STRUCT_FORMAT, the_bytes, offset=4
         )
         return cls(
             ELF_MAGIC,
             ElfClass(elf_class),
-            ElfData(data),
+            ElfByteOrder(byte_order),
             ElfVersion(version),
             os_abi,
             abi_version,
@@ -131,9 +131,9 @@ class ElfHeader(NamedTuple):
     @staticmethod
     def _get_struct_format(magic_ident: ElfMagicIdent) -> str:
         if magic_ident.elf_class is ElfClass.ELF_32:
-            return magic_ident.data.struct_format + "HHIIIIIHHHHHH"
+            return magic_ident.byte_order.struct_format + "HHIIIIIHHHHHH"
         else:  # ElfClass.ELF_64
-            return magic_ident.data.struct_format + "HHIQQQIHHHHHH"
+            return magic_ident.byte_order.struct_format + "HHIQQQIHHHHHH"
 
 
 def parse_elf(contents: Bytes) -> ElfHeader:
