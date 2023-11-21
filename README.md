@@ -6,5 +6,4 @@ by others to learn how linkers work.
 
 
 ## TODO
-1. Be able to parse ELF files
-2. Write linking logic
+1. Parse ELF files
