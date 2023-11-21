@@ -35,6 +35,9 @@ class ElfVersion(enum.IntEnum):
     INVALID = 0
     CURRENT = 1
 
+    def __repr__(self):
+        return self.name
+
 
 ELF_MAGIC = b"\x7fELF"
 ELF_MAGIC_BYTES_STRUCT_FORMAT = "BBBBB7x"
@@ -90,9 +93,6 @@ class ElfFileType(enum.Flag):
     HIOS = 0xFEFF
     LOPROC = 0xFF00
     HIPROC = 0xFFFF
-
-    def __str__(self):
-        return self.name
 
     def __repr__(self):
         return self.name
@@ -175,11 +175,17 @@ class ElfSegmentType(enum.Flag):
     LOPROC = 0x70000000
     HIPROC = 0x7FFFFFFF
 
+    def __repr__(self):
+        return self.name
+
 
 class ElfPermissionFlags(enum.Flag):
     EXEC = 1
     WRITE = 1 << 1
     READ = 1 << 2
+
+    def __repr__(self):
+        return self.name
 
 
 class ElfProgramHeader(NamedTuple):
@@ -291,6 +297,9 @@ class ElfSectionType(enum.Flag):
     LOUSER = 0x80000000
     HIUSER = 0x8FFFFFFF
 
+    def __repr__(self):
+        return self.name
+
 
 class ElfSectionFlags(enum.Flag):
     NULL = 0
@@ -309,6 +318,9 @@ class ElfSectionFlags(enum.Flag):
     MASKPROC = 0xF0000000
     ORDERED = 1 << 30
     EXCLUDE = 1 << 31
+
+    def __repr__(self):
+        return self.name
 
 
 class ElfSectionHeader(NamedTuple):
@@ -463,16 +475,20 @@ if __name__ == "__main__":
         print(f"==================={len(str(elf_file)) * '='}")
         print("ELF Header:")
         for field in parsed.elf_header._fields:
-            print(f"    {field}={getattr(parsed.elf_header, field)}")
+            print(f"    {field}={repr(getattr(parsed.elf_header, field))}")
         print("Program Headers:")
         for h in parsed.program_header_table:
-            print(
-                f"    type={h.segment_type.name:16}\toffset={h.offset}\tflags={h.flags.name}"
-            )
+            print("   ", h)
+            # print(
+            #     f"    type={h.segment_type.name:16}\toffset={h.offset}\tflags={h.flags.name}"
+            # )
         print("Section Headers:")
         for h in parsed.section_header_table:
-            print(
-                f"    name={parsed.string_table[h.name_index]:16}\ttype={h.section_type.name:12}\tflags={h.flags.name:12}\toffset={h.offset}"
-            )
+            print("   ", parsed.string_table[h.name_index], "=>", h)
+            # print(
+            #     f"    name={parsed.string_table[h.name_index]:16}\ttype={h.section_type.name:12}\tflags={h.flags.name:12}\toffset={h.offset}"
+            # )
+        print("String Table")
+        print(bytes(parsed.string_table.strings))
 
     main()
