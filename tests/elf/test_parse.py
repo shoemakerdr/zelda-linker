@@ -16,3 +16,6 @@ def test_can_parse_elf_program_header(elf_fixture_set):
         )
         == elf_fixture_set.program_header_table
     )
+
+
+# TODO: Add tests for section headers

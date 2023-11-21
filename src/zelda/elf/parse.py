@@ -14,6 +14,9 @@ class ElfClass(enum.IntEnum):
     ELF_32 = 1
     ELF_64 = 2
 
+    def __repr__(self):
+        return self.name
+
 
 class ElfByteOrder(enum.IntEnum):
     INVALID = 0
@@ -23,6 +26,9 @@ class ElfByteOrder(enum.IntEnum):
     @property
     def struct_format(self):
         return "<" if self is self.LITTLE_ENDIAN else ">"
+
+    def __repr__(self):
+        return self.name
 
 
 class ElfVersion(enum.IntEnum):
@@ -73,12 +79,23 @@ class ElfMagicIdent(NamedTuple):
         )
 
 
-class ElfFileType(enum.IntEnum):
+class ElfFileType(enum.Flag):
     NONE = 0
-    EXECUTABLE = 1
-    SHARED_OBJECT = 2
-    RELOCATABLE_OBJECT = 3
+    RELOCATABLE_OBJECT = 1
+    EXECUTABLE = 2
+    SHARED_OBJECT = 3
     CORE_DUMP = 4
+    NUM = 5
+    LOOS = 0xFE00
+    HIOS = 0xFEFF
+    LOPROC = 0xFF00
+    HIPROC = 0xFFFF
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.name
 
 
 class ElfHeader(NamedTuple):
@@ -119,7 +136,7 @@ class ElfHeader(NamedTuple):
     program_header_entry_count: int
     section_header_size: int
     section_header_entry_count: int
-    section_header_table_index: int
+    section_header_string_table_index: int
 
     @classmethod
     def parse(cls, the_bytes: Bytes) -> "ElfHeader":
@@ -136,7 +153,7 @@ class ElfHeader(NamedTuple):
             return magic_ident.byte_order.struct_format + "HHIQQQIHHHHHH"
 
 
-class ElfSegmentType(enum.IntEnum):
+class ElfSegmentType(enum.Flag):
     NULL = 0
     LOAD = 1
     DYNAMIC = 2
@@ -144,9 +161,9 @@ class ElfSegmentType(enum.IntEnum):
     NOTE = 4
     RESERVED = 5
     PROGRAM_HEADER = 6
-    THREAD_LOCAL_STORAGE = 7
-    NUM_OF_DEFINED_TYPES = 8
-    START_OF_OS_SPECIFIC = 0x60000000
+    TLS = 7
+    NUM = 8
+    LOOS = 0x60000000
     GNU_EH_FRAME = 0x6474E550
     GNU_STACK = 0x6474E551
     GNU_RELRO = 0x6474E552
@@ -154,12 +171,12 @@ class ElfSegmentType(enum.IntEnum):
     SUNWBSS = 0x6FFFFFFA
     SUNWSTACK = 0x6FFFFFFB
     HISUNW = 0x6FFFFFFF
-    END_OF_OS_SPECIFIC = 0x6FFFFFFF
-    START_OF_PROCESSOR_SPECIFIC = 0x70000000
-    END_OF_PROCESSOR_SPECIFIC = 0x7FFFFFFF
+    HIOS = 0x6FFFFFFF
+    LOPROC = 0x70000000
+    HIPROC = 0x7FFFFFFF
 
 
-class ElfPermissionFlag(enum.IntFlag):
+class ElfPermissionFlags(enum.Flag):
     EXEC = 1
     WRITE = 1 << 1
     READ = 1 << 2
@@ -167,41 +184,38 @@ class ElfPermissionFlag(enum.IntFlag):
 
 class ElfProgramHeader(NamedTuple):
     """
-    Format:
-        ELF-32
-        ------
+    ELF-32 Format:
         4 bytes     Segment type
         4 bytes     Segment file offset
         4 bytes     Segment virtual address
         4 bytes     Segment physical address
         4 bytes     Segment size in file
         4 bytes     Segment size in memory
-        4 bytes     Segment flags
+        4 bytes     Segment flags (NOTE: that flags are in a different spot for ELF-64)
         4 bytes     Segment alignment
+    ELF-32 Total:
+        32 bytes
 
-        ELF-64
-        ------
+    ELF-64 Format:
         4 bytes     Segment type
-        4 bytes     Segment flags (NOTE that flags are in a different spot for ELF-64)
+        4 bytes     Segment flags (NOTE: that flags are in a different spot for ELF-32)
         8 bytes     Segment file offset
         8 bytes     Segment virtual address
         8 bytes     Segment physical address
         8 bytes     Segment size in file
         8 bytes     Segment size in memory
         8 bytes     Segment alignment
-    Total:
-        ELF-32      ELF-64
-        ------      ------
-        32 bytes    56 bytes
+    ELF-64 Total:
+        56 bytes
     """
 
-    segment_type: int
+    segment_type: ElfSegmentType
     offset: int
     virtual_address: int
     physical_address: int
     file_size: int
     memory_size: int
-    flags: int
+    flags: ElfPermissionFlags
     alignment: int
 
     @classmethod
@@ -225,7 +239,7 @@ class ElfProgramHeader(NamedTuple):
                     header[3 + elf64_offset],
                     header[4 + elf64_offset],
                     header[5 + elf64_offset],
-                    ElfPermissionFlag(header[flags_index]),
+                    ElfPermissionFlags(header[flags_index]),
                     header[7],
                 )
             )
@@ -239,8 +253,156 @@ class ElfProgramHeader(NamedTuple):
             return magic_ident.byte_order.struct_format + "IIQQQQQQ"
 
 
+class ElfSectionType(enum.Flag):
+    NULL = 0
+    PROGBITS = 1
+    SYMTAB = 2
+    STRTAB = 3
+    RELA = 4
+    HASH = 5
+    DYNAMIC = 6
+    NOTE = 7
+    NOBITS = 8
+    REL = 9
+    SHLIB = 10
+    DYNSYM = 11
+    INIT_ARRAY = 14
+    FINI_ARRAY = 15
+    PREINIT_ARRAY = 16
+    GROUP = 17
+    SYMTAB_SHNDX = 18
+    NUM = 19
+    LOOS = 0x60000000
+    GNU_ATTRIBUTES = 0x6FFFFFF5
+    GNU_HASH = 0x6FFFFFF6
+    GNU_LIBLIST = 0x6FFFFFF7
+    CHECKSUM = 0x6FFFFFF8
+    LOSUNW = 0x6FFFFFFA
+    SUNW_move = 0x6FFFFFFA
+    SUNW_COMDAT = 0x6FFFFFFB
+    SUNW_syminfo = 0x6FFFFFFC
+    GNU_verdef = 0x6FFFFFFD
+    GNU_verneed = 0x6FFFFFFE
+    GNU_versym = 0x6FFFFFFF
+    HISUNW = 0x6FFFFFFF
+    HIOS = 0x6FFFFFFF
+    LOPROC = 0x70000000
+    HIPROC = 0x7FFFFFFF
+    LOUSER = 0x80000000
+    HIUSER = 0x8FFFFFFF
+
+
+class ElfSectionFlags(enum.Flag):
+    NULL = 0
+    WRITE = 1 << 0
+    ALLOC = 1 << 1
+    EXEC_INSTR = 1 << 2
+    MERGE = 1 << 4
+    STRINGS = 1 << 5
+    INFO_LINK = 1 << 6
+    LINK_ORDER = 1 << 7
+    OS_NONCONFORMING = 1 << 8
+    GROUP = 1 << 9
+    TLS = 1 << 10
+    COMPRESSED = 1 << 11
+    MASKOS = 0x0FF00000
+    MASKPROC = 0xF0000000
+    ORDERED = 1 << 30
+    EXCLUDE = 1 << 31
+
+
 class ElfSectionHeader(NamedTuple):
-    ...
+    """
+    Format:
+        ELF-32      ELF-64
+        ------      ------
+        4 bytes	    4 bytes		Section name (string tbl index)
+        4 bytes	    4 bytes		Section type
+        4 bytes	    8 bytes		Section flags
+        4 bytes	    8 bytes		Section virtual addr at execution
+        4 bytes	    8 bytes		Section file offset
+        4 bytes	    8 bytes		Section size in bytes
+        4 bytes	    4 bytes		Link to another section
+        4 bytes	    4 bytes		Additional section information
+        4 bytes	    8 bytes		Section alignment
+        4 bytes	    8 bytes		Entry size if section holds table
+    Format:
+        ELF-32      ELF-64
+        ------      ------
+        40 bytes    64 bytes
+    """
+
+    name_index: int
+    section_type: ElfSectionType
+    flags: ElfSectionFlags
+    virtual_address: int
+    offset: int
+    size: int
+    link: int
+    info: int
+    alignment: int
+    entry_size: int
+
+    @classmethod
+    def parse_table(
+        cls, elf_header: ElfHeader, the_bytes: Bytes
+    ) -> list["ElfSectionHeader"]:
+        section_headers = []
+        struct_bytes_format = cls._get_struct_format(elf_header.magic_ident)
+        start = elf_header.section_header_offset
+        step = elf_header.section_header_size
+        stop = (step * elf_header.section_header_entry_count) + start
+        for offset in range(start, stop, step):
+            name_index, section_type, flags, *rest = struct.unpack_from(
+                struct_bytes_format, the_bytes, offset=offset
+            )
+            section_headers.append(
+                cls(
+                    name_index,
+                    ElfSectionType(section_type),
+                    ElfSectionFlags(flags),
+                    *rest,
+                )
+            )
+        return section_headers
+
+    @staticmethod
+    def _get_struct_format(magic_ident: ElfMagicIdent) -> str:
+        if magic_ident.elf_class is ElfClass.ELF_32:
+            return magic_ident.byte_order.struct_format + "IIIIIIIIII"
+        else:  # ElfClass.ELF_64
+            return magic_ident.byte_order.struct_format + "IIQQQQIIQQ"
+
+
+class ElfStringTable:
+    """
+    name_index: int
+    section_type: ElfSectionType
+    flags: ElfSectionFlags
+    virtual_address: int
+    offset: int
+    size: int
+    link: int
+    info: int
+    alignment: int
+    entry_size: int
+    """
+
+    def __init__(self, string_table_header: ElfSectionHeader, file_contents: Bytes):
+        self.string_table_header = string_table_header
+        self.strings = file_contents[
+            string_table_header.offset : string_table_header.offset
+            + string_table_header.size
+        ]
+
+    def __getitem__(self, index: int) -> str:
+        """Read null-terminated string"""
+        ba = bytearray()
+        for b in self.strings[index:]:
+            if b == 0:
+                break
+            ba.append(b)
+        return ba.decode("utf-8")
 
 
 class ElfFile:
@@ -248,21 +410,37 @@ class ElfFile:
         self,
         elf_header: ElfHeader,
         program_header_table: list[ElfProgramHeader],
+        section_header_table: list[ElfSectionHeader],
+        file_contents: Bytes,
     ):
         self.elf_header = elf_header
         self.program_header_table = program_header_table
+        self.section_header_table = section_header_table
+        self.string_table = ElfStringTable(
+            section_header_table[elf_header.section_header_string_table_index],
+            file_contents,
+        )
+        self.file_contents = file_contents
+        self.size = len(file_contents)
 
     @classmethod
     def parse(cls, file_contents: Bytes) -> "ElfFile":
         elf_header = ElfHeader.parse(file_contents)
         program_header_table = ElfProgramHeader.parse_table(elf_header, file_contents)
-        return cls(elf_header, program_header_table)
+        section_header_table = ElfSectionHeader.parse_table(elf_header, file_contents)
+        return cls(
+            elf_header, program_header_table, section_header_table, file_contents
+        )
 
     def __repr__(self) -> str:
-        return f"ElfFile(elf_header={self.elf_header}, program_headers={self.program_header_table})"
-
-    def dump(self) -> str:
-        ...
+        return (
+            f"<ElfFile"
+            f" elf_header={self.elf_header}"
+            f", program_headers={self.program_header_table}"
+            f", section_headers={self.section_header_table}"
+            f", size={self.size}"
+            f">"
+        )
 
 
 if __name__ == "__main__":
@@ -278,10 +456,23 @@ if __name__ == "__main__":
 
         fbytes = elf_file.read_bytes()
         try:
-            parsed = ElfFile.parse(memoryview(fbytes))
+            parsed: ElfFile = ElfFile.parse(memoryview(fbytes))
         except ElfParseError as e:
             raise SystemExit(f"ERROR: {e.__class__.__name__} - {e}") from None
-        print(f"Parsed contents of {elf_file}:")
-        print(parsed)
+        print(f"Parsed contents of {elf_file}")
+        print(f"==================={len(str(elf_file)) * '='}")
+        print("ELF Header:")
+        for field in parsed.elf_header._fields:
+            print(f"    {field}={getattr(parsed.elf_header, field)}")
+        print("Program Headers:")
+        for h in parsed.program_header_table:
+            print(
+                f"    type={h.segment_type.name:16}\toffset={h.offset}\tflags={h.flags.name}"
+            )
+        print("Section Headers:")
+        for h in parsed.section_header_table:
+            print(
+                f"    name={parsed.string_table[h.name_index]:16}\ttype={h.section_type.name:12}\tflags={h.flags.name:12}\toffset={h.offset}"
+            )
 
     main()
