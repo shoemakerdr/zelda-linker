@@ -6,7 +6,28 @@ by others to learn how linkers work.
 
 
 ## TODO
-1. Parse ELF files
+* Parse ELF files
+    * ~ELF Header~
+    * ~Program Headers~
+    * ~Section Headers~
+    * Sections
+        * `PROGBITS` - program data
+        * `SYMTAB` - symbol table
+        * ~`STRTAB` - string table~
+        * `REL` - relocation
+        * `RELA` - relocation with addends
+        * `HASH` - symbol hash table
+        * `DYNAMIC` - dynamic linking information
+        * `NOTE`
+        * `NOBITS` - uninitialized data (bss)
+        * `DYNSYM` - dynamic linker symbol table
+        * `INIT_ARRAY` - array of constructors
+        * `FINI_ARRAY` - array of destructors
+        * `PREINIT_ARRAY` - array of pre-constructors
+        * Not sure if I'll do the rest... there are a lot
+* Linking logic
+    * TBD...
+
 
 ## Resources
 ### ELF Cheatsheet
