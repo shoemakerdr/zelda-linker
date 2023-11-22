@@ -406,6 +406,7 @@ class ElfStringTable:
             string_table_header.offset : string_table_header.offset
             + string_table_header.size
         ]
+        self._index = 1
 
     def __getitem__(self, index: int) -> str:
         """Read null-terminated string"""
@@ -415,6 +416,16 @@ class ElfStringTable:
                 break
             ba.append(b)
         return ba.decode("utf-8")
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._index >= len(self.strings):
+            raise StopIteration
+        s = self[self._index]
+        self._index += len(s) + 1
+        return s
 
 
 class ElfFile:
@@ -475,7 +486,7 @@ if __name__ == "__main__":
         print(f"==================={len(str(elf_file)) * '='}")
         print("ELF Header:")
         for field in parsed.elf_header._fields:
-            print(f"    {field}={repr(getattr(parsed.elf_header, field))}")
+            print(f"    {field} => {repr(getattr(parsed.elf_header, field))}")
         print("Program Headers:")
         for h in parsed.program_header_table:
             print("   ", h)
@@ -484,11 +495,15 @@ if __name__ == "__main__":
             # )
         print("Section Headers:")
         for h in parsed.section_header_table:
-            print("   ", parsed.string_table[h.name_index], "=>", h)
+            name = parsed.string_table[h.name_index]
+            name = name if name else "[NULL]"
+            print("   ", name)
+            print("       ", h)
             # print(
             #     f"    name={parsed.string_table[h.name_index]:16}\ttype={h.section_type.name:12}\tflags={h.flags.name:12}\toffset={h.offset}"
             # )
         print("String Table")
-        print(bytes(parsed.string_table.strings))
+        for s in parsed.string_table:
+            print(f"    {s}")
 
     main()
