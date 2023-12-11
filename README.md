@@ -18,7 +18,7 @@ by others to learn how linkers work.
         * `RELA` - relocation with addends
         * `HASH` - symbol hash table
         * `DYNAMIC` - dynamic linking information
-        * `NOTE`
+        * `NOTE` - note
         * `NOBITS` - uninitialized data (bss)
         * `DYNSYM` - dynamic linker symbol table
         * `INIT_ARRAY` - array of constructors

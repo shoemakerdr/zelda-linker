@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 import enum
 import struct
 
@@ -153,7 +153,7 @@ class ElfHeader(NamedTuple):
             return magic_ident.byte_order.struct_format + "HHIQQQIHHHHHH"
 
 
-class ElfSegmentType(enum.Flag):
+class ElfSegmentType(enum.IntFlag):
     NULL = 0
     LOAD = 1
     DYNAMIC = 2
@@ -176,16 +176,18 @@ class ElfSegmentType(enum.Flag):
     HIPROC = 0x7FFFFFFF
 
     def __repr__(self):
-        return self.name
+        return self.name if self.name is not None else "UNKNOWN"
 
 
-class ElfPermissionFlags(enum.Flag):
+class ElfSegmentFlags(enum.IntFlag):
     EXEC = 1
     WRITE = 1 << 1
     READ = 1 << 2
+    MASKOS = 0x0FF00000
+    MASKPROC = 0xF0000000
 
     def __repr__(self):
-        return self.name
+        return self.name if self.name is not None else "UNKNOWN"
 
 
 class ElfProgramHeader(NamedTuple):
@@ -221,7 +223,7 @@ class ElfProgramHeader(NamedTuple):
     physical_address: int
     file_size: int
     memory_size: int
-    flags: ElfPermissionFlags
+    flags: ElfSegmentFlags
     alignment: int
 
     @classmethod
@@ -245,7 +247,7 @@ class ElfProgramHeader(NamedTuple):
                     header[3 + elf64_offset],
                     header[4 + elf64_offset],
                     header[5 + elf64_offset],
-                    ElfPermissionFlags(header[flags_index]),
+                    ElfSegmentFlags(header[flags_index]),
                     header[7],
                 )
             )
@@ -400,6 +402,12 @@ class ElfStringTable:
     entry_size: int
     """
 
+    __slots__ = (
+        "string_table_header",
+        "strings",
+        "_index",
+    )
+
     def __init__(self, string_table_header: ElfSectionHeader, file_contents: Bytes):
         self.string_table_header = string_table_header
         self.strings = file_contents[
@@ -428,7 +436,83 @@ class ElfStringTable:
         return s
 
 
+class ElfSymbol(NamedTuple):
+    """
+    ELF-32 Format:
+        4 bytes     Segment type
+        4 bytes     Segment file offset
+        4 bytes     Segment virtual address
+        4 bytes     Segment physical address
+        4 bytes     Segment size in file
+        4 bytes     Segment size in memory
+        4 bytes     Segment flags (NOTE: that flags are in a different spot for ELF-64)
+        4 bytes     Segment alignment
+    ELF-32 Total:
+        32 bytes
+
+    ELF-64 Format:
+        4 bytes     Segment type
+        4 bytes     Segment flags (NOTE: that flags are in a different spot for ELF-32)
+        8 bytes     Segment file offset
+        8 bytes     Segment virtual address
+        8 bytes     Segment physical address
+        8 bytes     Segment size in file
+        8 bytes     Segment size in memory
+        8 bytes     Segment alignment
+    ELF-64 Total:
+        56 bytes
+    32-bit struct:
+
+    typedef struct
+    {
+      4 bytes	st_name;		Symbol name (string tbl index)
+      4 bytes	st_value;		Symbol value
+      4 bytes	st_size;		Symbol size
+      1 byte    st_info;		Symbol type and binding (4 bits type, 4 bits binding)
+      1 byte	st_other;		Symbol visibility
+      2 bytes?	st_shndx;		Section index
+    } Elf32_Sym;
+
+    64-bit struct:
+
+    typedef struct
+    {
+      4 bytes	st_name;        Symbol name (string tbl index)
+      1 byte	st_info;		Symbol type and binding
+      1 byte    st_other;		Symbol visibility
+      2 bytes?	st_shndx;		Section index
+      8 bytes	st_value;		Symbol value
+      8 bytes	st_size;		Symbol size
+    } Elf64_Sym;
+
+    """
+
+    @classmethod
+    def parse(cls, the_bytes):
+        pass
+
+    @staticmethod
+    def parse_info(info: int) -> Tuple[int, int]:
+        """
+        #define ELFN_ST_BIND(i)   ((i)>>4)
+        #define ELFN_ST_TYPE(i)   ((i)&0xf)
+        #define ELFN_ST_INFO(b,t) (((b)<<4)+((t)&0xf))
+        """
+        symbol_binding = info >> 4
+        symbol_type = info & 0xF
+        return symbol_binding, symbol_type
+
+
 class ElfFile:
+    __slots__ = (
+        "elf_header",
+        "program_header_table",
+        "section_header_table",
+        "file_contents",
+        "string_table",
+        "size",
+    )
+
     def __init__(
         self,
         elf_header: ElfHeader,

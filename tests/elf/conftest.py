@@ -8,7 +8,7 @@ from zelda.elf.parse import (
     ElfFileType,
     ElfHeader,
     ElfMagicIdent,
-    ElfPermissionFlags,
+    ElfSegmentFlags,
     ElfProgramHeader,
     ElfSectionFlags,
     ElfSectionHeader,
@@ -183,7 +183,7 @@ def big_endian_elf_program(elf_program_maker):
 def elf_program_header_table():
     return [
         ElfProgramHeader(
-            ElfSegmentType.LOAD, 0x78, 0x400078, 0, 16, 16, ElfPermissionFlags(5), 4096
+            ElfSegmentType.LOAD, 0x78, 0x400078, 0, 16, 16, ElfSegmentFlags(5), 4096
         )
     ]
 
