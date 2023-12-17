@@ -436,63 +436,114 @@ class ElfStringTable:
         return s
 
 
+class ElfSymbolBinding(enum.Enum):
+    LOCAL = 0
+    GLOBAL = 1
+    WEAK = 2
+
+
+class ElfSymbolType(enum.Enum):
+    NOTYPE = 0
+    FUNC = 1
+    OBJECT = 2
+    SECTION = 3
+
+
+class ElfSymbolVisibility(enum.Enum):
+    DEFAULT = 0
+    PROTECTED = 1
+    HIDDEN = 2
+    INTERNAL = 3
+
+
 class ElfSymbol(NamedTuple):
     """
     ELF-32 Format:
-        4 bytes     Segment type
-        4 bytes     Segment file offset
-        4 bytes     Segment virtual address
-        4 bytes     Segment physical address
-        4 bytes     Segment size in file
-        4 bytes     Segment size in memory
-        4 bytes     Segment flags (NOTE: that flags are in a different spot for ELF-64)
-        4 bytes     Segment alignment
+        4 bytes	    Symbol name (string tbl index)
+        4 bytes	    Symbol value
+        4 bytes	    Symbol size
+        1 byte      Symbol type and binding (4 bits type, 4 bits binding)
+        1 byte	    Symbol visibility
+        2 bytes     Section index
     ELF-32 Total:
-        32 bytes
+        16 bytes
 
     ELF-64 Format:
-        4 bytes     Segment type
-        4 bytes     Segment flags (NOTE: that flags are in a different spot for ELF-32)
-        8 bytes     Segment file offset
-        8 bytes     Segment virtual address
-        8 bytes     Segment physical address
-        8 bytes     Segment size in file
-        8 bytes     Segment size in memory
-        8 bytes     Segment alignment
+        4 bytes     Symbol name (string tbl index)
+        1 byte      Symbol type and binding
+        1 byte      Symbol visibility
+        2 bytes 	Section index
+        8 bytes	    Symbol value
+        8 bytes	    Symbol size
     ELF-64 Total:
-        56 bytes
-    32-bit struct:
-
-    typedef struct
-    {
-      4 bytes	st_name;		Symbol name (string tbl index)
-      4 bytes	st_value;		Symbol value
-      4 bytes	st_size;		Symbol size
-      1 byte    st_info;		Symbol type and binding (4 bits type, 4 bits binding)
-      1 byte	st_other;		Symbol visibility
-      2 bytes?	st_shndx;		Section index
-    } Elf32_Sym;
-
-    64-bit struct:
-
-    typedef struct
-    {
-      4 bytes	st_name;        Symbol name (string tbl index)
-      1 byte	st_info;		Symbol type and binding
-      1 byte    st_other;		Symbol visibility
-      2 bytes?	st_shndx;		Section index
-      8 bytes	st_value;		Symbol value
-      8 bytes	st_size;		Symbol size
-    } Elf64_Sym;
+        24 bytes
 
     """
 
+    name_index: int
+    value: int
+    size: int
+    type_: ElfSymbolType
+    binding: ElfSymbolBinding
+    visibility: ElfSymbolVisibility
+    section_index: int
+
     @classmethod
-    def parse(cls, the_bytes):
-        pass
+    def parse_table(
+        cls,
+        elf_header: ElfHeader,
+        symbol_table_header: ElfSectionHeader,
+        the_bytes: Bytes,
+    ) -> list["ElfSymbol"]:
+        symbols = []
+        start = symbol_table_header.offset
+        step = symbol_table_header.entry_size
+        stop = symbol_table_header.size + start
+        parse_func = (
+            cls._parse_elf_64
+            if elf_header.magic_ident.elf_class is ElfClass.ELF_64
+            else cls._parse_elf_32
+        )
+        for offset in range(start, stop, step):
+            symbols.append(parse_func(elf_header.magic_ident, the_bytes, offset))
+        return symbols
+
+    @classmethod
+    def _parse_elf_32(
+        cls, magic_ident: ElfMagicIdent, the_bytes: Bytes, offset: int
+    ) -> "ElfSymbol":
+        struct_format = magic_ident.byte_order.struct_format + "IIIBBH"
+        name_index, value, size, info, visibility, section_index = struct.unpack_from(
+            struct_format, the_bytes, offset=offset
+        )
+        return cls(
+            name_index,
+            value,
+            size,
+            *ElfSymbol._parse_info(info),
+            ElfSymbolVisibility(visibility),
+            section_index,
+        )
+
+    @classmethod
+    def _parse_elf_64(
+        cls, magic_ident: ElfMagicIdent, the_bytes: Bytes, offset: int
+    ) -> "ElfSymbol":
+        struct_format = magic_ident.byte_order.struct_format + "IBBHQQ"
+        name_index, info, visibility, section_index, value, size = struct.unpack_from(
+            struct_format, the_bytes, offset=offset
+        )
+        return cls(
+            name_index,
+            value,
+            size,
+            *ElfSymbol._parse_info(info),
+            ElfSymbolVisibility(visibility),
+            section_index,
+        )
 
     @staticmethod
-    def parse_info(info: int) -> Tuple[int, int]:
+    def _parse_info(info: int) -> Tuple[ElfSymbolType, ElfSymbolBinding]:
         """
         #define ELFN_ST_BIND(i)   ((i)>>4)
         #define ELFN_ST_TYPE(i)   ((i)&0xf)
@@ -500,7 +551,7 @@ class ElfSymbol(NamedTuple):
         """
         symbol_binding = info >> 4
         symbol_type = info & 0xF
-        return symbol_binding, symbol_type
+        return ElfSymbolType(symbol_type), ElfSymbolBinding(symbol_binding)
 
 
 class ElfFile:
@@ -509,7 +560,9 @@ class ElfFile:
         "program_header_table",
         "section_header_table",
         "file_contents",
+        "symbol_table",
         "string_table",
+        "symbol_string_table",
         "size",
     )
 
@@ -518,13 +571,25 @@ class ElfFile:
         elf_header: ElfHeader,
         program_header_table: list[ElfProgramHeader],
         section_header_table: list[ElfSectionHeader],
+        symbol_table: list[ElfSymbol],
         file_contents: Bytes,
     ):
         self.elf_header = elf_header
         self.program_header_table = program_header_table
         self.section_header_table = section_header_table
+        self.symbol_table = symbol_table
         self.string_table = ElfStringTable(
             section_header_table[elf_header.section_header_string_table_index],
+            file_contents,
+        )
+        symbol_string_table_header = [
+            t
+            for t in section_header_table
+            if t.section_type is ElfSectionType.STRTAB
+            and self.string_table[t.name_index] == ".dynstr"
+        ][0]
+        self.symbol_string_table = ElfStringTable(
+            symbol_string_table_header,
             file_contents,
         )
         self.file_contents = file_contents
@@ -535,8 +600,23 @@ class ElfFile:
         elf_header = ElfHeader.parse(file_contents)
         program_header_table = ElfProgramHeader.parse_table(elf_header, file_contents)
         section_header_table = ElfSectionHeader.parse_table(elf_header, file_contents)
+        try:
+            symbol_table_header = [
+                t
+                for t in section_header_table
+                if t.section_type in (ElfSectionType.SYMTAB, ElfSectionType.DYNSYM)
+            ][0]
+        except IndexError:
+            raise ElfParseError("Could not find symbol table!")
+        symbol_table = ElfSymbol.parse_table(
+            elf_header, symbol_table_header, file_contents
+        )
         return cls(
-            elf_header, program_header_table, section_header_table, file_contents
+            elf_header,
+            program_header_table,
+            section_header_table,
+            symbol_table,
+            file_contents,
         )
 
     def __repr__(self) -> str:
@@ -548,46 +628,3 @@ class ElfFile:
             f", size={self.size}"
             f">"
         )
-
-
-if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    def main():
-        if len(sys.argv) < 2:
-            raise SystemExit("ERROR: Must include ELF file arg!")
-        elf_file = Path(sys.argv[1])
-        if not elf_file.exists():
-            raise SystemExit(f"ERROR: Specified ELF file `{elf_file}` does not exist!")
-
-        fbytes = elf_file.read_bytes()
-        try:
-            parsed: ElfFile = ElfFile.parse(memoryview(fbytes))
-        except ElfParseError as e:
-            raise SystemExit(f"ERROR: {e.__class__.__name__} - {e}") from None
-        print(f"Parsed contents of {elf_file}")
-        print(f"==================={len(str(elf_file)) * '='}")
-        print("ELF Header:")
-        for field in parsed.elf_header._fields:
-            print(f"    {field} => {repr(getattr(parsed.elf_header, field))}")
-        print("Program Headers:")
-        for h in parsed.program_header_table:
-            print("   ", h)
-            # print(
-            #     f"    type={h.segment_type.name:16}\toffset={h.offset}\tflags={h.flags.name}"
-            # )
-        print("Section Headers:")
-        for h in parsed.section_header_table:
-            name = parsed.string_table[h.name_index]
-            name = name if name else "[NULL]"
-            print("   ", name)
-            print("       ", h)
-            # print(
-            #     f"    name={parsed.string_table[h.name_index]:16}\ttype={h.section_type.name:12}\tflags={h.flags.name:12}\toffset={h.offset}"
-            # )
-        print("String Table")
-        for s in parsed.string_table:
-            print(f"    {s}")
-
-    main()
