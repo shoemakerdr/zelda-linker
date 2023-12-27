@@ -436,6 +436,21 @@ class ElfStringTable:
         return s
 
 
+class ElfSpecialSectionIndices(enum.Enum):
+    # fmt: off
+    UNDEF = 0           # Undefined, missing, irrelevant, or meaningless
+    LORESERVE = 0xFF00  # Lowest reserved index
+    LOPROC = 0xFF00     # Lowest processor-specific index
+    HIPROC = 0xFF1F     # Highest processor-specific index
+    LOOS = 0xFF20       # Lowest operating system-specific index
+    HIOS = 0xFF3F       # Highest operating system-specific index
+    ABS = 0xFFF1        # Symbol has absolute value; does not need relocation
+    COMMON = 0xFFF2     # FORTRAN COMMON or C external global variables
+    XINDEX = 0xFFFF     # Mark that the index is >= SHN_LORESERVE
+    HIRESERVE = 0xFFFF  # Highest reserved index
+    # fmt: on
+
+
 class ElfSymbolBinding(enum.Enum):
     LOCAL = 0
     GLOBAL = 1

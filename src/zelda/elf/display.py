@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from zelda.elf.parse import ElfFile, ElfParseError
+from zelda.elf.parse import ElfFile, ElfParseError, ElfSpecialSectionIndices
 
 
 def arg_parser():
@@ -38,12 +38,26 @@ def main():
         print("   ", name)
         print("       ", h)
     print("Symbol Table")
-    print(f"{'TYPE':<8}  {'BINDING':<8}  {'VIS':<8}  {'VALUE':<10}  {'NAME'}")
-    print(f"{'=' * 8}  {'=' * 8}  {'=' * 8}  {'=' * 10}  {'=' * 24}")
+    print(
+        f"{'TYPE':<8}  {'BINDING':<8}  {'VIS':<8}  {'SECTION':<10}  {'VALUE':<10}  {'NAME'}"
+    )
+    print(f"{'=' * 8}  {'=' * 8}  {'=' * 8}  {'=' * 10}  {'=' * 10}  {'=' * 24}")
     for s in parsed.symbol_table:
         name = parsed.symbol_string_table[s.name_index]
+        value = None
+        if s.section_index in ElfSpecialSectionIndices:
+            section_name = ElfSpecialSectionIndices(s.section_index).name
+            if (
+                ElfSpecialSectionIndices(s.section_index)
+                is ElfSpecialSectionIndices.UNDEF
+            ):
+                value = " " * 10
+        else:
+            section = parsed.section_header_table[s.section_index]
+            section_name = parsed.string_table[section.name_index]
+        value = f"0x{s.value:<8x}" if value is None else value
         print(
-            f"{s.type_.name:<8}  {s.binding.name:<8}  {s.visibility.name:<8}  0x{s.value:<8x}  {name}"
+            f"{s.type_.name:<8}  {s.binding.name:<8}  {s.visibility.name:<8}  {section_name:<10}  {value}  {name}"
         )
 
 
