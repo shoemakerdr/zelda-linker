@@ -8,6 +8,22 @@ def arg_parser():
     pass
 
 
+def display_elf_header(elf_header):
+    pass
+
+
+def display_elf_program_header_table(table):
+    pass
+
+
+def display_elf_section_header_table(table):
+    pass
+
+
+def display_elf_symbol_table(table):
+    pass
+
+
 def main():
     if len(sys.argv) < 2:
         raise SystemExit("ERROR: Must include ELF file arg!")
