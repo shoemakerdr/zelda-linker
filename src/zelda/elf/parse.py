@@ -436,6 +436,21 @@ class ElfStringTable:
         return s
 
 
+class SectionHeaderTable:
+    __slots__ = (
+        "sections",
+        "string_table",
+    )
+
+    def init(self, sections: list[ElfSectionHeader], string_table: ElfStringTable):
+        self.sections = sections
+        self.string_table = string_table
+
+    @classmethod
+    def parse(cls):
+        pass
+
+
 class ElfSpecialSectionIndices(enum.Enum):
     # fmt: off
     UNDEF = 0           # Undefined, missing, irrelevant, or meaningless
