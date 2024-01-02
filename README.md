@@ -56,3 +56,12 @@ Ian Lance Taylor wrote the gold linker and has a famous blog series about linker
 * [Part 19](https://www.airs.com/blog/archives/56)
 * [Part 20](https://www.airs.com/blog/archives/57)
 
+
+## Container Workflow
+```
+# create image
+$ docker image build -f dockerfiles/dev.Dockerfile -t zelda-dev .
+
+# run container
+$ docker run -ti zelda-dev /bin/bash
+```
