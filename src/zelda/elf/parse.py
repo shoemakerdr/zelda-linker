@@ -358,30 +358,25 @@ class ElfSectionHeader(NamedTuple):
     entry_size: int
 
     @classmethod
-    def parse_table(
-        cls, elf_header: ElfHeader, the_bytes: Bytes
-    ) -> list["ElfSectionHeader"]:
-        section_headers = []
-        struct_bytes_format = cls._get_struct_format(elf_header.magic_ident)
-        start = elf_header.section_header_offset
-        step = elf_header.section_header_size
-        stop = (step * elf_header.section_header_entry_count) + start
-        for offset in range(start, stop, step):
-            name_index, section_type, flags, *rest = struct.unpack_from(
-                struct_bytes_format, the_bytes, offset=offset
-            )
-            section_headers.append(
-                cls(
-                    name_index,
-                    ElfSectionType(section_type),
-                    ElfSectionFlags(flags),
-                    *rest,
-                )
-            )
-        return section_headers
+    def parse(
+        cls,
+        elf_header: ElfHeader,
+        the_bytes: Bytes,
+        offset: int,
+    ) -> "ElfSectionHeader":
+        struct_bytes_format = cls.get_struct_format(elf_header.magic_ident)
+        name_index, section_type, flags, *rest = struct.unpack_from(
+            struct_bytes_format, the_bytes, offset=offset
+        )
+        return cls(
+            name_index,
+            ElfSectionType(section_type),
+            ElfSectionFlags(flags),
+            *rest,
+        )
 
     @staticmethod
-    def _get_struct_format(magic_ident: ElfMagicIdent) -> str:
+    def get_struct_format(magic_ident: ElfMagicIdent) -> str:
         if magic_ident.elf_class is ElfClass.ELF_32:
             return magic_ident.byte_order.struct_format + "IIIIIIIIII"
         else:  # ElfClass.ELF_64
@@ -436,19 +431,56 @@ class ElfStringTable:
         return s
 
 
-class SectionHeaderTable:
+class ElfSectionHeaderTable:
     __slots__ = (
-        "sections",
+        "section_headers",
         "string_table",
+        "_index",
     )
 
-    def init(self, sections: list[ElfSectionHeader], string_table: ElfStringTable):
-        self.sections = sections
+    def __init__(self, sections: list[ElfSectionHeader], string_table: ElfStringTable):
+        self.section_headers = sections
         self.string_table = string_table
 
     @classmethod
-    def parse(cls):
-        pass
+    def parse(cls, elf_header: ElfHeader, the_bytes: Bytes):
+        section_headers = []
+        start = elf_header.section_header_offset
+        step = elf_header.section_header_size
+        stop = (step * elf_header.section_header_entry_count) + start
+        for offset in range(start, stop, step):
+            section_headers.append(
+                ElfSectionHeader.parse(elf_header, the_bytes, offset)
+            )
+
+        string_table = ElfStringTable(
+            section_headers[elf_header.section_header_string_table_index],
+            the_bytes,
+        )
+        return cls(section_headers, string_table)
+
+    def __getitem__(self, index: int) -> Tuple[str, ElfSectionHeader]:
+        header = self.section_headers[index]
+        name = self.string_table[header.name_index]
+        return name, header
+
+    def __len__(self):
+        return len(self.section_headers)
+
+    def __iter__(self):
+        self._index = 0
+        return self
+
+    def __next__(self):
+        try:
+            name, header = self[self._index]
+        except IndexError:
+            raise StopIteration
+        self._index += 1
+        return name, header
+
+    def __repr__(self) -> str:
+        return repr({name: h for name, h in self})
 
 
 class ElfSpecialSectionIndices(enum.Enum):
@@ -527,27 +559,7 @@ class ElfSymbol(NamedTuple):
     section_index: int
 
     @classmethod
-    def parse_table(
-        cls,
-        elf_header: ElfHeader,
-        symbol_table_header: ElfSectionHeader,
-        the_bytes: Bytes,
-    ) -> list["ElfSymbol"]:
-        symbols = []
-        start = symbol_table_header.offset
-        step = symbol_table_header.entry_size
-        stop = symbol_table_header.size + start
-        parse_func = (
-            cls._parse_elf_64
-            if elf_header.magic_ident.elf_class is ElfClass.ELF_64
-            else cls._parse_elf_32
-        )
-        for offset in range(start, stop, step):
-            symbols.append(parse_func(elf_header.magic_ident, the_bytes, offset))
-        return symbols
-
-    @classmethod
-    def _parse_elf_32(
+    def parse_elf_32(
         cls, magic_ident: ElfMagicIdent, the_bytes: Bytes, offset: int
     ) -> "ElfSymbol":
         struct_format = magic_ident.byte_order.struct_format + "IIIBBH"
@@ -564,7 +576,7 @@ class ElfSymbol(NamedTuple):
         )
 
     @classmethod
-    def _parse_elf_64(
+    def parse_elf_64(
         cls, magic_ident: ElfMagicIdent, the_bytes: Bytes, offset: int
     ) -> "ElfSymbol":
         struct_format = magic_ident.byte_order.struct_format + "IBBHQQ"
@@ -592,68 +604,125 @@ class ElfSymbol(NamedTuple):
         return ElfSymbolType(symbol_type), ElfSymbolBinding(symbol_binding)
 
 
+class ElfSymbolTable:
+    __slots__ = (
+        "symbols",
+        "string_table",
+        "header",
+        "_index",
+    )
+
+    def __init__(
+        self,
+        symbols: list[ElfSymbol],
+        string_table: ElfStringTable,
+        header: ElfSectionHeader,
+    ):
+        self.symbols = symbols
+        self.string_table = string_table
+        self.header = header
+
+    @classmethod
+    def parse(
+        cls,
+        elf_header: ElfHeader,
+        symbol_table_header: ElfSectionHeader,
+        symbol_string_table_header: ElfSectionHeader,
+        the_bytes: Bytes,
+    ) -> "ElfSymbolTable":
+        symbols = []
+        start = symbol_table_header.offset
+        step = symbol_table_header.entry_size
+        stop = symbol_table_header.size + start
+        parse_func = (
+            ElfSymbol.parse_elf_64
+            if elf_header.magic_ident.elf_class is ElfClass.ELF_64
+            else ElfSymbol.parse_elf_32
+        )
+        for offset in range(start, stop, step):
+            symbols.append(parse_func(elf_header.magic_ident, the_bytes, offset))
+        string_table = ElfStringTable(
+            symbol_string_table_header,
+            the_bytes,
+        )
+        return cls(symbols, string_table, symbol_table_header)
+
+    def __getitem__(self, index: int) -> Tuple[str, ElfSymbol]:
+        symbol = self.symbols[index]
+        symbol_name = self.string_table[symbol.name_index]
+        return symbol_name, symbol
+
+    def __len__(self):
+        return len(self.symbols)
+
+    def __iter__(self):
+        self._index = 0
+        return self
+
+    def __next__(self):
+        try:
+            symbol_name, symbol = self[self._index]
+        except IndexError:
+            raise StopIteration
+        self._index += 1
+        return symbol_name, symbol
+
+    def __repr__(self) -> str:
+        return repr({name: h for name, h in self})
+
+
 class ElfFile:
     __slots__ = (
         "elf_header",
-        "program_header_table",
         "section_header_table",
         "file_contents",
-        "symbol_table",
-        "string_table",
+        "symbol_tables",
         "symbol_string_table",
         "size",
+        "_program_header_table",
     )
 
     def __init__(
         self,
         elf_header: ElfHeader,
-        program_header_table: list[ElfProgramHeader],
-        section_header_table: list[ElfSectionHeader],
-        symbol_table: list[ElfSymbol],
+        section_header_table: ElfSectionHeaderTable,
+        symbol_tables: list[ElfSymbolTable],
         file_contents: Bytes,
     ):
         self.elf_header = elf_header
-        self.program_header_table = program_header_table
         self.section_header_table = section_header_table
-        self.symbol_table = symbol_table
-        self.string_table = ElfStringTable(
-            section_header_table[elf_header.section_header_string_table_index],
-            file_contents,
-        )
-        symbol_string_table_header = [
-            t
-            for t in section_header_table
-            if t.section_type is ElfSectionType.STRTAB
-            and self.string_table[t.name_index] == ".dynstr"
-        ][0]
-        self.symbol_string_table = ElfStringTable(
-            symbol_string_table_header,
-            file_contents,
-        )
+        self.symbol_tables = symbol_tables
         self.file_contents = file_contents
         self.size = len(file_contents)
+
+    @property
+    def program_header_table(self) -> list[ElfProgramHeader]:
+        """Lazily parse program headers since we don't need them for linking"""
+        try:
+            self._program_header_table
+        except AttributeError:
+            self._program_header_table = ElfProgramHeader.parse_table(
+                self.elf_header, self.file_contents
+            )
+        return self._program_header_table
 
     @classmethod
     def parse(cls, file_contents: Bytes) -> "ElfFile":
         elf_header = ElfHeader.parse(file_contents)
-        program_header_table = ElfProgramHeader.parse_table(elf_header, file_contents)
-        section_header_table = ElfSectionHeader.parse_table(elf_header, file_contents)
-        try:
-            symbol_table_header = [
-                t
-                for t in section_header_table
-                if t.section_type in (ElfSectionType.SYMTAB, ElfSectionType.DYNSYM)
-            ][0]
-        except IndexError:
-            raise ElfParseError("Could not find symbol table!")
-        symbol_table = ElfSymbol.parse_table(
-            elf_header, symbol_table_header, file_contents
-        )
+        section_header_table = ElfSectionHeaderTable.parse(elf_header, file_contents)
+        symbol_tables = []
+        for _, header in section_header_table:
+            if header.section_type in (ElfSectionType.SYMTAB, ElfSectionType.DYNSYM):
+                string_table_header = section_header_table[header.link][1]
+                symbol_tables.append(
+                    ElfSymbolTable.parse(
+                        elf_header, header, string_table_header, file_contents
+                    )
+                )
         return cls(
             elf_header,
-            program_header_table,
             section_header_table,
-            symbol_table,
+            symbol_tables,
             file_contents,
         )
 
@@ -661,7 +730,6 @@ class ElfFile:
         return (
             f"<ElfFile"
             f" elf_header={self.elf_header}"
-            f", program_headers={self.program_header_table}"
             f", section_headers={self.section_header_table}"
             f", size={self.size}"
             f">"

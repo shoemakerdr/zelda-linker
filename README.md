@@ -58,6 +58,7 @@ Ian Lance Taylor wrote the gold linker and has a famous blog series about linker
 
 
 ## Container Workflow
+_Useful for running `readelf` and `objdump` on `elf_samples/` binaries_
 ```
 # create image
 $ docker image build -f dockerfiles/dev.Dockerfile -t zelda-dev .
